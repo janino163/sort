@@ -18,6 +18,7 @@
 from __future__ import print_function
 
 from numba import jit
+import numby as np
 import os.path
 import numpy as np
 import matplotlib.pyplot as plt
@@ -27,7 +28,7 @@ from sklearn.utils.linear_assignment_ import linear_assignment
 import glob
 import time
 import argparse
-from filterpy.kalman import KalmanFilter
+
 
 @jit
 def iou(bb_test,bb_gt):
@@ -82,17 +83,17 @@ class KalmanBoxTracker(object):
     Initialises a tracker using initial bounding box.
     """
     #define constant velocity model
-    self.kf = KalmanFilter(dim_x=7, dim_z=4)
-    self.kf.F = np.array([[1,0,0,0,1,0,0],[0,1,0,0,0,1,0],[0,0,1,0,0,0,1],[0,0,0,1,0,0,0],  [0,0,0,0,1,0,0],[0,0,0,0,0,1,0],[0,0,0,0,0,0,1]])
-    self.kf.H = np.array([[1,0,0,0,0,0,0],[0,1,0,0,0,0,0],[0,0,1,0,0,0,0],[0,0,0,1,0,0,0]])
 
-    self.kf.R[2:,2:] *= 10.
-    self.kf.P[4:,4:] *= 1000. #give high uncertainty to the unobservable initial velocities
-    self.kf.P *= 10.
-    self.kf.Q[-1,-1] *= 0.01
-    self.kf.Q[4:,4:] *= 0.01
+    self.F = np.array([[1,0,0,0,1,0,0],[0,1,0,0,0,1,0],[0,0,1,0,0,0,1],[0,0,0,1,0,0,0],  [0,0,0,0,1,0,0],[0,0,0,0,0,1,0],[0,0,0,0,0,0,1]])
+    self.H = np.array([[1,0,0,0,0,0,0],[0,1,0,0,0,0,0],[0,0,1,0,0,0,0],[0,0,0,1,0,0,0]])
 
-    self.kf.x[:4] = convert_bbox_to_z(bbox)
+    self.R = 10.*np.identity(4)
+    self.P = 1000.*np.identity(4)#give high uncertainty to the unobservable initial velocities
+    self.P[1,1] = .5 # uncertainty in x pos
+    self.P[2,2] = .5 # uncertainty in y pos
+    self.Q = 0.01*
+
+    self.x[:4] = convert_bbox_to_z(bbox)
     self.time_since_update = 0
     self.id = KalmanBoxTracker.count
     KalmanBoxTracker.count += 1
@@ -100,6 +101,8 @@ class KalmanBoxTracker(object):
     self.hits = 0
     self.hit_streak = 0
     self.age = 0
+
+
 
   def update(self,bbox):
     """
@@ -214,7 +217,7 @@ class Sort(object):
 
     #create and initialise new trackers for unmatched detections
     for i in unmatched_dets:
-        trk = KalmanBoxTracker(dets[i,:]) 
+        trk = KalmanBoxTracker(dets[i,:])
         self.trackers.append(trk)
     i = len(self.trackers)
     for trk in reversed(self.trackers):
@@ -228,7 +231,7 @@ class Sort(object):
     if(len(ret)>0):
       return np.concatenate(ret)
     return np.empty((0,5))
-    
+
 def parse_args():
     """Parse input arguments."""
     parser = argparse.ArgumentParser(description='SORT demo')
@@ -250,11 +253,11 @@ if __name__ == '__main__':
       print('\n\tERROR: mot_benchmark link not found!\n\n    Create a symbolic link to the MOT benchmark\n    (https://motchallenge.net/data/2D_MOT_2015/#download). E.g.:\n\n    $ ln -s /path/to/MOT2015_challenge/2DMOT2015 mot_benchmark\n\n')
       exit()
     plt.ion()
-    fig = plt.figure() 
-  
+    fig = plt.figure()
+
   if not os.path.exists('output'):
     os.makedirs('output')
-  
+
   for seq in sequences:
     mot_tracker = Sort() #create instance of the SORT tracker
     seq_dets = np.loadtxt('data/%s/det.txt'%(seq),delimiter=',') #load detections
@@ -293,6 +296,3 @@ if __name__ == '__main__':
   print("Total Tracking took: %.3f for %d frames or %.1f FPS"%(total_time,total_frames,total_frames/total_time))
   if(display):
     print("Note: to get real runtime results run without the option: --display")
-  
-
-
